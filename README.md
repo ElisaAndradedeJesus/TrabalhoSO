@@ -23,21 +23,56 @@ As regras completas estão no arquivo `[SO 2026-2] Trabalho 1 (PThreads).pdf`. E
 
 As threads devem ser criadas uma vez por busca paralela e buscar novos blocos até esgotar o trabalho. Não é permitido usar um vetor de resultados por macrobloco para somar ao final.
 
-## Organização inicial
+## Status atual
+
+A geração da matriz e a contagem serial estão implementadas. A busca paralela está em desenvolvimento e ainda não realiza contagem.
+
+### Implementado
+
+- Matriz global alocada dinamicamente com `calloc`, tratamento de falhas e liberação da memória.
+- Dimensões configuradas por `#define`: atualmente `79056 × 79056`.
+- Geração de valores de 0 a 31999 usando semente fixa `67`.
+- Medição separada do tempo de geração da matriz e da contagem serial.
+- Contagem serial com tabela de consulta preparada pelo Crivo de Eratóstenes.
+- Menu com tratamento de entrada inválida e opções para serial, paralela, ambas e saída.
+- Makefile com suporte a PThreads e `.gitignore` para o executável `primos`.
+
+### Em desenvolvimento
+
+- `contarPrimosParalelo()` contém apenas o esboço de um laço; ainda não cria threads.
+- `macroBloco()` está vazia.
+- As constantes `MAX_THREADS`, `MAX_LINHAS_POR_THREAD` e `MAX_COLUNAS_POR_THREAD` foram declaradas. A primeira aparece no laço do esboço; as dimensões ainda não controlam a divisão em blocos.
+- `controleMacroBlocos` está declarado, mas ainda não distribui trabalho.
+
+### Pendências para atender ao enunciado
+
+- Substituir a tabela do crivo pela função `int ehPrimo(int n)` com teste de divisores até a raiz, conforme solicitado pelo professor. Atualmente `ehPrimo` é o nome de um vetor, não de uma função.
+- Calcular as coordenadas dos macroblocos sem copiar a matriz, permitindo variar altura e largura por `#define` e garantindo blocos de mesmo tamanho.
+- Criar as threads, distribuir blocos dinamicamente e aguardar a conclusão com `pthread_join()`.
+- Proteger com mutexes a reserva de blocos e a atualização do total global. Cada thread deve contar localmente por bloco e somar ao global ao terminar esse bloco.
+- Rever os tipos dos contadores e dos cálculos: com a matriz atual, blocos `1 × 1` totalizam 6.249.851.136 blocos, além da capacidade usual de um `int` de 32 bits.
+- Conectar a busca paralela ao menu e implementar a opção de executar ambas, comparar resultados e mostrar o speedup (`tempo serial / tempo paralelo`).
+- Validar primeiro com matrizes pequenas, realizar os experimentos em duas máquinas e elaborar o relatório.
+
+**Limitação atual do menu:** somente a opção `1` executa uma contagem. A opção `2` exibe tempo e total sem chamar uma busca, portanto seus resultados não representam desempenho paralelo. A opção `3` ainda não executa nenhuma busca.
+
+## Parâmetros e memória
+
+A matriz atual tem 6.249.851.136 elementos. Considerando `int` de 4 bytes, são aproximadamente **25 GB apenas para os elementos**, além dos ponteiros e do custo das alocações. Ajustem `LINHAS` e `COLUNAS` em `main.c` para a memória disponível em cada computador e evitem uso significativo de swap durante as medições.
+
+O tamanho final de benchmark deve ser reavaliado após adequar a função de primalidade: o enunciado sugere `10000 × 10000` como início e uma busca serial superior a 5 segundos. Para desenvolver e conferir resultados, usem matrizes pequenas.
+
+## Organização dos arquivos
 
 - `[SO 2026-2] Trabalho 1 (PThreads).pdf`: especificação do professor.
-- `README.md`: apresentação do projeto e orientações de colaboração.
-- `main.c` (a criar): único arquivo fonte do programa.
-- O relatório será escrito em um arquivo Markdown separado e exportado para PDF para a entrega.
+- `[SO] Introdução à Programação Concorrente com PThreads.pdf`: material sobre threads e mutexes.
+- `[Apostila] Programação em C (v2.0.0).pdf`: material de apoio de C.
+- `main.c`: único arquivo fonte, com geração, busca serial e esboços da busca paralela.
+- `Makefile`: compilação, execução e limpeza do executável.
+- `.gitignore`: impede que o executável `primos` seja incluído normalmente nos commits.
+- `README.md`: apresentação, status e orientações de colaboração.
 
-## Por onde começar
-
-1. Ler a especificação e combinar a divisão de tarefas entre os integrantes.
-2. Criar `main.c` com os parâmetros da matriz, alocação dinâmica com verificação de falhas, geração dos números com semente fixa e liberação da memória.
-3. Implementar `ehPrimo` e a busca serial. Conferir o resultado com uma matriz pequena cujos primos possam ser contados manualmente.
-4. Medir o tempo da busca serial e escolher uma matriz que leve mais de 5 segundos nessa busca, sem uso significativo de swap.
-5. Implementar a distribuição de macroblocos e a busca com PThreads e mutexes. Comparar a contagem com a versão serial.
-6. Realizar os experimentos exigidos nas duas máquinas e registrar os resultados para o relatório.
+O relatório ainda não está presente no repositório. A proposta é escrevê-lo em Markdown separado e exportá-lo para PDF para a entrega.
 
 ## Como contribuir
 
@@ -74,16 +109,32 @@ No GitHub, abram um Pull Request para a branch principal, descrevendo o que mudo
 - Mantenham a versão com mutexes funcionando; identifiquem claramente a variante experimental sem proteção.
 - Todos devem compreender o código e conseguir explicar as decisões e os resultados, conforme as exigências da disciplina.
 
-## Compilação
+## Compilação e execução
 
-O programa ainda não foi implementado. Quando `main.c` estiver disponível, um comando de referência para Linux com GCC será:
+Em Linux, com GCC e Make disponíveis:
+
+```bash
+make
+```
+
+Esse comando compila quando necessário, executa o programa e remove o executável se a execução terminar com sucesso. A matriz é gerada antes de aparecer o menu.
+
+Outras opções:
+
+```bash
+make primos  # Apenas compila
+make run     # Compila quando necessário e executa, mantendo o executável
+make clean   # Remove o executável
+```
+
+Para compilar e executar diretamente:
 
 ```bash
 gcc -Wall -Wextra -O2 -pthread main.c -o primos -lm
 ./primos
 ```
 
-Atualizem esta seção quando forem definidos os modos de execução. Registrem o compilador e as opções usadas nos testes para permitir a reprodução dos resultados.
+A implementação paralela ainda está incompleta; a presença de `-pthread` habilita o suporte na compilação, mas não significa que o programa já crie threads. Registrem o compilador e as opções usados nos testes para permitir a reprodução dos resultados.
 
 ## Entrega
 

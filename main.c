@@ -3,22 +3,20 @@
 #include <stdbool.h>
 #include <time.h>
 #include <pthread.h>
-#include <stdint.h>
-#include <inttypes.h>
-#include <string.h>
-#include <unistd.h>
-#include <pthread.h>
 
 // DEFINIÇÃO DE CONSTANTES
 #define LINHAS 79056
 #define COLUNAS 79056
-#define SEMENTE_FIXA 67 // Define a semente fixa para o gerador de números aleatórios
+#define SEMENTE_FIXA 67 // Define a semente fixa para o gerador de números aleatórios SIXXX SEVEENNNN
 #define MAX_NUM_PRIMO 31999 // Define o limite máximo para os números primos
-#define MAX_THREADS 4 // Define o número máximo de threads
+
+#define MAX_THREADS 4 // Define o número de threads
+#define MAX_LINHAS_POR_THREAD 1 // Define o número máximo de linhas por thread
+#define MAX_COLUNAS_POR_THREAD 1 // Define o número máximo de colunas por thread
 
 //VARIÁVEIS GLOBAIS
 int **matriz = NULL;
-uint64_t totalPrimos = 0;
+int totalPrimos = 0;
 int controleMacroBlocos = 0;
 bool ehPrimo[MAX_NUM_PRIMO + 1]; // Tabela de consulta para números primos
 
@@ -119,73 +117,23 @@ void contarPrimosSerial(int **matriz) {
         }
     }
 }
-typedef struct {
-    int **matriz;
-    int inicio;
-    int fim;
-    uint64_t total;
-} TrabalhoThread;
 
-void *contarFaixa(void *argumento) {
-    TrabalhoThread *trabalho = argumento;
-    uint64_t total = 0;
-    for (int i = trabalho->inicio; i < trabalho->fim; i++) {
-        for (int j = 0; j < COLUNAS; j++) {
-            if (ehPrimo[trabalho->matriz[i][j]]) total++;
-        }
-    }
-    trabalho->total = total;
-    return NULL;
-}
+void macroBloco(int** miniMatriz, int linhas, int colunas){}
 
 void contarPrimosParalelo(int **matriz) {
-    long processadores = sysconf(_SC_NPROCESSORS_ONLN);
-    int quantidade = processadores > 0 ?
-        (processadores > LINHAS ? LINHAS : (int)processadores) : 1;
-    pthread_t *threads = calloc(quantidade, sizeof(*threads));
-    TrabalhoThread *trabalhos = calloc(quantidade, sizeof(*trabalhos));
-    if (threads == NULL || trabalhos == NULL) {
-        free(threads);
-        free(trabalhos);
-        fprintf(stderr, "Sem memoria para as threads; usando contagem serial.\n");
-        contarPrimosSerial(matriz);
-        return;
-    }
+    // Implementação da contagem paralela de números primos
+    // Esta função deve ser implementada usando threads para dividir o trabalho
+    // entre múltiplas threads, cada uma contando os primos em uma parte da matriz.
 
-    int criadas = 0;
-    for (int t = 0; t < quantidade; t++) {
-        trabalhos[t] = (TrabalhoThread) {
-            .matriz = matriz,
-            .inicio = (int)((int64_t)t * LINHAS / quantidade),
-            .fim = (int)((int64_t)(t + 1) * LINHAS / quantidade),
-            .total = 0
-        };
-        int erro = pthread_create(&threads[t], NULL, contarFaixa, &trabalhos[t]);
-        if (erro != 0) {
-            fprintf(stderr, "Falha ao criar thread: %s. Restante na thread principal.\n",
-                    strerror(erro));
-            trabalhos[t].fim = LINHAS;
-            contarFaixa(&trabalhos[t]);
-            totalPrimos += trabalhos[t].total;
-            break;
-        }
-        criadas++;
+    for (int i = 0; i < MAX_THREADS; i++) {
+        // Criar threads e dividir a matriz entre elas
+        // Cada thread deve contar os primos em sua parte da matriz
     }
-    for (int t = 0; t < criadas; t++) {
-        int erro = pthread_join(threads[t], NULL);
-        if (erro != 0) {
-            fprintf(stderr, "Falha ao aguardar thread: %s\n", strerror(erro));
-            exit(EXIT_FAILURE);
-        }
-        totalPrimos += trabalhos[t].total;
-    }
-    free(threads);
-    free(trabalhos);
 }
 
 void saida(struct timespec inicio, struct timespec fim, const char* metodo) {
     double tempo = (fim.tv_sec - inicio.tv_sec) + (fim.tv_nsec - inicio.tv_nsec) / 1e9;
-    printf("%s - Total de números primos: %" PRIu64 "\n", metodo, totalPrimos);
+    printf("%s - Total de números primos: %d\n", metodo, totalPrimos);
     printf("Tempo de execução: %.6f segundos\n", tempo);
 }
 void menu(int** matriz){
@@ -222,23 +170,13 @@ void menu(int** matriz){
                 saida(inicio, fim, "CONTAGEM SERIAL");
                 break;
             case 2:
-                clock_gettime(CLOCK_MONOTONIC, &inicio);
-                contarPrimosParalelo(matriz);
-                clock_gettime(CLOCK_MONOTONIC, &fim);
+                clock_gettime(CLOCK_MONOTONIC, &inicio); // Inicia a contagem do tempo  
+                // Chamar função de contagem paralela
+                clock_gettime(CLOCK_MONOTONIC, &fim); // Finaliza a contagem do tempo
                 saida(inicio, fim, "CONTAGEM PARALELA");
                 break;
             case 3:
-                clock_gettime(CLOCK_MONOTONIC, &inicio);
-                contarPrimosSerial(matriz);
-                clock_gettime(CLOCK_MONOTONIC, &fim);
-                saida(inicio, fim, "CONTAGEM SERIAL");
-                uint64_t totalSerial = totalPrimos;
-                totalPrimos = 0;
-                clock_gettime(CLOCK_MONOTONIC, &inicio);
-                contarPrimosParalelo(matriz);
-                clock_gettime(CLOCK_MONOTONIC, &fim);
-                saida(inicio, fim, "CONTAGEM PARALELA");
-                printf("Resultados %s.\n", totalSerial == totalPrimos ? "iguais" : "diferentes");
+                // Chamar ambas as funções
                 break;
             case 0:
                 printf("Saindo...\n");
