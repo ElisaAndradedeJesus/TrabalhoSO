@@ -14,17 +14,22 @@
 #endif
 
 // DEFINIÇÃO DE CONSTANTES
-#define LINHAS 19200
-#define COLUNAS 19200
+#define LINHAS 79056 
+#define COLUNAS 79056 
+
+#define LINHAS_POR_BLOCO 24
+#define COLUNAS_POR_BLOCO 24
 /*  Define o tamanho da matriz 
     As dimensões devem ser positivas e dividir exatamente a Matriz sem deixar resto*/
 
 #define SEMENTE_FIXA 67 // Define a semente fixa para o gerador de números aleatórios SIXXX SEVEENNNN
-#define MAX_NUM_PRIMO 31999 // Define o limite máximo para os números primos
-
 #define MAX_THREADS 4 // Define o número de threads
-#define LINHAS_POR_BLOCO 24
-#define COLUNAS_POR_BLOCO 24
+
+// ============================================================================================================================
+// ============================================================================================================================
+// ============================================================================================================================
+
+#define MAX_NUM_PRIMO 31999 // Define o limite máximo para os números primos
 
 //VARIÁVEIS GLOBAIS
 int **matriz = NULL;
@@ -313,7 +318,7 @@ int main(){
 
     printf("Gerando matriz de %d x %d...\n", LINHAS, COLUNAS);
     struct timespec inicio, fim;
-    clock_gettime(CLOCK_MONOTONIC, &inicio); // Inicia a contagem do tempo para gerar a matriz
+    double inicioMatriz = obterTempoAtual();
 
     matriz = alocarMatriz(LINHAS, COLUNAS);
     if (matriz == NULL) {
@@ -324,7 +329,7 @@ int main(){
     preencherMatriz(matriz);
     // imprimirMatriz(matriz);
     double fimMatriz = obterTempoAtual(); // Finaliza a contagem do tempo para gerar a matriz
-    printf("Matriz gerada em %.6f segundos.\n", (fim.tv_sec - inicio.tv_sec) + (fim.tv_nsec - inicio.tv_nsec) / 1e9);
+    printf("Matriz gerada em %.6f segundos.\n", fimMatriz - inicioMatriz);
 
     menu(); // Chama o menu para interação com o usuário
 
