@@ -1,11 +1,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <time.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <inttypes.h>
 #include <math.h>
+
+// Controle automático de biblioteca de tempo (Windows vs Linux)
+#ifdef _WIN32
+    #include <windows.h>
+#else
+    #include <time.h>
+#endif
 
 // DEFINIÇÃO DE CONSTANTES
 #define LINHAS 19200
@@ -28,6 +34,19 @@ uint64_t totalBlocos = 0;
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
+// FUNÇÃO UNIVERSAL DE TEMPO
+double obterTempoAtual() {
+#ifdef _WIN32
+    LARGE_INTEGER frequencia, contador;
+    QueryPerformanceFrequency(&frequencia);
+    QueryPerformanceCounter(&contador);
+    return (double)contador.QuadPart / frequencia.QuadPart;
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (ts.tv_sec) + (ts.tv_nsec / 1e9);
+#endif
+}
 
 // FUNÇÃO PARA VERIFICAR PRIMO
 int ehPrimo(int n) {
@@ -194,8 +213,7 @@ void contarPrimosParalelo() {
 }
 
 
-void saida(struct timespec inicio, struct timespec fim, const char* metodo) {
-    double tempo = (fim.tv_sec - inicio.tv_sec) + (fim.tv_nsec - inicio.tv_nsec) / 1e9;
+void saida(double tempo, const char* metodo) {
     printf("%s Total de números primos: %" PRIu64 "\n", metodo, totalPrimos);
     printf("Tempo de execução: %.6f segundos\n", tempo);
 }
@@ -229,36 +247,36 @@ void menu(){
             case 1:
                 // Chamar função de contagem serial
                 totalPrimos = 0; // Resetar o contador de primos antes da contagem 
-                clock_gettime(CLOCK_MONOTONIC, &inicioSerial); // Inicia a contagem do tempo  
+                double inicioSerial = obterTempoAtual(); // Inicia a contagem do tempo  
                 contarPrimosSerial();
-                clock_gettime(CLOCK_MONOTONIC, &fimSerial); // Finaliza a contagem do tempo
-                saida(inicioSerial, fimSerial, "CONTAGEM SERIAL");
+                double fimSerial = obterTempoAtual(); // Finaliza a contagem do tempo
+                saida(fimSerial - inicioSerial, "CONTAGEM SERIAL");
                 break;
             case 2:
                 totalPrimos = 0; // Resetar o contador de primos antes da contagem 
                 controleMacroBlocos = 0; // Reinicia o contador de blocos
-                clock_gettime(CLOCK_MONOTONIC, &inicioParalelo); // Inicia a contagem do tempo  
+                double inicioParalelo = obterTempoAtual(); // Inicia a contagem do tempo  
                 contarPrimosParalelo();
-                clock_gettime(CLOCK_MONOTONIC, &fimParalelo); // Finaliza a contagem do tempo
-                saida(inicioParalelo, fimParalelo, "CONTAGEM PARALELA");
+                double fimParalelo = obterTempoAtual(); // Finaliza a contagem do tempo
+                saida(fimParalelo - inicioParalelo, "CONTAGEM PARALELA");
                 break;
             case 3:
                 // Chamar ambas as funções
                 totalPrimos = 0;
-                clock_gettime(CLOCK_MONOTONIC, &inicioSerial); // Inicia a contagem do tempo
+                inicioSerial = obterTempoAtual(); // Inicia a contagem do tempo
                 contarPrimosSerial();
-                clock_gettime(CLOCK_MONOTONIC, &fimSerial); // Finaliza a contagem do tempo
-                saida(inicioSerial, fimSerial, "CONTAGEM SERIAL");
+                fimSerial = obterTempoAtual(); // Finaliza a contagem do tempo
+                saida(fimSerial - inicioSerial, "CONTAGEM SERIAL");
 
                 totalPrimos = 0; // Resetar o contador de primos antes da contagem 
                 controleMacroBlocos = 0; // Reinicia o contador de blocos
-                clock_gettime(CLOCK_MONOTONIC, &inicioParalelo); // Inicia a contagem do tempo
+                inicioParalelo = obterTempoAtual(); // Inicia a contagem do tempo
                 contarPrimosParalelo();
-                clock_gettime(CLOCK_MONOTONIC, &fimParalelo); // Finaliza a contagem do tempo
-                saida(inicioParalelo, fimParalelo, "CONTAGEM PARALELA");
+                fimParalelo = obterTempoAtual(); // Finaliza a contagem do tempo
+                saida(fimParalelo - inicioParalelo, "CONTAGEM PARALELA");
 
-                double tSerial = (fimSerial.tv_sec - inicioSerial.tv_sec) + (fimSerial.tv_nsec - inicioSerial.tv_nsec) / 1e9;
-                double tParalelo = (fimParalelo.tv_sec - inicioParalelo.tv_sec) + (fimParalelo.tv_nsec - inicioParalelo.tv_nsec) / 1e9;
+                double tSerial = fimSerial - inicioSerial;
+                double tParalelo = fimParalelo - inicioParalelo;
 
                 if(tParalelo > 0) {
                     printf("\n>>> SPEEDUP: %.2fx <<<\n", tSerial / tParalelo); 
@@ -305,7 +323,7 @@ int main(){
     
     preencherMatriz(matriz);
     // imprimirMatriz(matriz);
-    clock_gettime(CLOCK_MONOTONIC, &fim); // Finaliza a contagem do tempo para gerar a matriz
+    double fimMatriz = obterTempoAtual(); // Finaliza a contagem do tempo para gerar a matriz
     printf("Matriz gerada em %.6f segundos.\n", (fim.tv_sec - inicio.tv_sec) + (fim.tv_nsec - inicio.tv_nsec) / 1e9);
 
     menu(); // Chama o menu para interação com o usuário
