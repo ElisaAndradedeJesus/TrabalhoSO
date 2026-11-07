@@ -8,17 +8,22 @@
 #include <math.h>
 
 // DEFINIÇÃO DE CONSTANTES
-#define LINHAS 19200
-#define COLUNAS 19200
+#define LINHAS 79056 
+#define COLUNAS 79056 
+
+#define LINHAS_POR_BLOCO 24
+#define COLUNAS_POR_BLOCO 24
 /*  Define o tamanho da matriz 
     As dimensões devem ser positivas e dividir exatamente a Matriz sem deixar resto*/
 
 #define SEMENTE_FIXA 67 // Define a semente fixa para o gerador de números aleatórios SIXXX SEVEENNNN
-#define MAX_NUM_PRIMO 31999 // Define o limite máximo para os números primos
-
 #define MAX_THREADS 4 // Define o número de threads
-#define LINHAS_POR_BLOCO 24
-#define COLUNAS_POR_BLOCO 24
+
+// ============================================================================================================================
+// ============================================================================================================================
+// ============================================================================================================================
+
+#define MAX_NUM_PRIMO 31999 // Define o limite máximo para os números primos (nunca mexer pfv)
 
 //VARIÁVEIS GLOBAIS
 int **matriz = NULL;
