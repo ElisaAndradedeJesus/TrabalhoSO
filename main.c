@@ -5,10 +5,11 @@
 #include <pthread.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <math.h>
 
 // DEFINIÇÃO DE CONSTANTES
-#define LINHAS 79056
-#define COLUNAS 79056
+#define LINHAS 19200
+#define COLUNAS 19200
 /*  Define o tamanho da matriz 
     As dimensões devem ser positivas e dividir exatamente a Matriz sem deixar resto*/
 
@@ -18,10 +19,6 @@
 #define MAX_THREADS 4 // Define o número de threads
 #define LINHAS_POR_BLOCO 24
 #define COLUNAS_POR_BLOCO 24
-#define MAX_LINHAS_POR_BLOCO  COLUNAS / COLUNAS_POR_BLOCO// Define o número máximo de linhas por thread (macrobloco)
-#define MAX_COLUNAS_POR_BLOCO LINHAS / LINHAS_POR_BLOCO // Define o número máximo de colunas por thread (macrobloco)
-
-
 
 //VARIÁVEIS GLOBAIS
 int **matriz = NULL;
@@ -31,34 +28,24 @@ uint64_t totalBlocos = 0;
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
-bool ehPrimo[MAX_NUM_PRIMO + 1]; // Tabela de consulta para números primos
 
-/* Visou-se construir o algoritmo mais eficiente possível para verificar 
-   se um número é primo. Como o limite máximo do valor dos elementos é conhecido, 
-   escolheu-se combinar o método do Crivo de Eratóstenes com uma tabela de consulta. 
-
-   O Crivo de Eratóstenes é usado para construir a tabela de consulta 
-   que permite descobrir imediatamente se um número é primo ou não, 
-   apresentando o melhor caso sempre O(1) (para qualquer caso). */
-
-void precomputarPrimos() {
-    // Inicializa todos como verdadeiros, como se todos os números fossem primos.
-    for (int i = 0; i <= MAX_NUM_PRIMO ; i++) {
-        ehPrimo[i] = true; // Assume que todos os números são primos inicialmente
-    }
-
-    ehPrimo[0] = false;
-    ehPrimo[1] = false;
-
-    // Implementa o Crivo de Eratóstenes para marcar os números não primos
-    for (int p = 2; p * p <= MAX_NUM_PRIMO; p++) {
-        if (ehPrimo[p]) {
-            for (int i = p * p; i <= MAX_NUM_PRIMO; i += p) {
-                ehPrimo[i] = false; // Marca múltiplos de p como não primos
-            }
+// FUNÇÃO PARA VERIFICAR PRIMO
+int ehPrimo(int n) {
+    if (n <= 1) return 0;
+    if (n == 2) return 1;
+    if (n % 2 == 0) return 0;
+    
+    // O cálculo da raiz fica fora do laço para não repetir operações desnecessárias
+    int limite = (int)sqrt(n); 
+    
+    for (int i = 3; i <= limite; i += 2) {
+        if (n % i == 0) {
+            return 0; // Não é primo
         }
     }
+    return 1; // É primo
 }
+
 
 int **alocarMatriz(int m, int n){
     int **v; /* ponteiro para a matriz */
@@ -111,20 +98,10 @@ void preencherMatriz(int **matriz){
     }
 }
 
-void imprimirMatriz(int **matriz){
-    if (matriz == NULL) return;
-    for (int i = 0; i < LINHAS; i++) {
-        for (int j = 0; j < COLUNAS; j++) {
-            printf("%5d ", matriz[i][j]);
-        }
-        printf("\n");
-    }
-}
-
 void contarPrimosSerial() { 
     for (int i = 0; i < LINHAS; i++) {
         for (int j = 0; j < COLUNAS; j++) {
-            if (ehPrimo[matriz[i][j]]) {
+            if (ehPrimo(matriz[i][j])) {
                 totalPrimos++;
             }
         }
@@ -135,56 +112,44 @@ void *contarPrimosThread(void *arg) {
     // Implementação da função que cada thread irá executar
     // Esta função deve contar os primos em uma parte da matriz
     // e atualizar o contador global de primos de forma segura (usando mutex, se necessário).
+    (void)arg;
     uint64_t blocosPorLinha = COLUNAS / COLUNAS_POR_BLOCO;
     
-    //Pega o próximo bloco a ser processado
-    pthread_mutex_lock(&mutex);
-    if (controleMacroBlocos >= totalBlocos) {
-        pthread_mutex_unlock(&mutex);
-        return NULL; // Não há mais trabalho.
-    }
-    uint64_t meuBloco = controleMacroBlocos;
-    controleMacroBlocos++;
-    // Contagem de primos na parte da matriz
-    pthread_mutex_unlock(&mutex);
-
-    uint64_t primosPorBloco = 0; // Contador local de primos para esta thread
-    
-    while(totalBlocos > meuBloco){
-        
-
-        uint64_t linhaInicial = (meuBloco / blocosPorLinha) * LINHAS_POR_BLOCO;
-        uint64_t colunaInicial =(meuBloco % blocosPorLinha) * COLUNAS_POR_BLOCO;
-
-        for (int i = linhaInicial;
-            i < linhaInicial + LINHAS_POR_BLOCO;
-            i++) {
-
-            for (int j = colunaInicial;
-                j < colunaInicial + COLUNAS_POR_BLOCO;
-                j++) {
-
-                // Usar matriz[i][j].
-                if (ehPrimo[matriz[i][j]]) {
-                    primosPorBloco++;
-                }
-            }
-        }
+    while(1) {
+        uint64_t meuBloco;
+        //Pega o próximo bloco a ser processado
         pthread_mutex_lock(&mutex);
         if (controleMacroBlocos >= totalBlocos) {
             pthread_mutex_unlock(&mutex);
             break; // Não há mais trabalho.
         }
         meuBloco = controleMacroBlocos;
-        controleMacroBlocos++;
+        controleMacroBlocos++; // Só incrementa se houver bloco disponível
         // Contagem de primos na parte da matriz
         pthread_mutex_unlock(&mutex);
 
-        pthread_mutex_lock(&mutex);
-        totalPrimos += primosPorBloco; // Atualiza o contador global de primos
-        pthread_mutex_unlock(&mutex);
+        // Cálculo das coordenadas do bloco na matriz
+        uint64_t linhaInicial = (meuBloco / blocosPorLinha) * LINHAS_POR_BLOCO;
+        uint64_t colunaInicial = (meuBloco % blocosPorLinha) * COLUNAS_POR_BLOCO;
 
-        primosPorBloco = 0; // Reseta o contador local para a próxima iteração
+        uint64_t primosPorBloco = 0; // Contador local de primos para esta thread
+    
+        // Processamento local do bloco
+        for (uint64_t i = linhaInicial;
+            i < linhaInicial + LINHAS_POR_BLOCO;
+            i++) {
+
+            for (uint64_t j = colunaInicial;
+                j < colunaInicial + COLUNAS_POR_BLOCO;
+                j++) {
+                if (ehPrimo(matriz[i][j])) primosPorBloco++;
+            }
+        }
+
+        // Somar ao total global
+        pthread_mutex_lock(&mutex);
+        totalPrimos += primosPorBloco; 
+        pthread_mutex_unlock(&mutex);
     }
 
     return NULL;
@@ -194,15 +159,15 @@ void contarPrimosParalelo() {
     // Implementação da contagem paralela de números primos
     // Esta função deve ser implementada usando threads para dividir o trabalho
     // entre múltiplas threads, cada uma contando os primos em uma parte da matriz.
-
     pthread_t threads[MAX_THREADS];
     bool threadsCriadas[MAX_THREADS]; // Array para rastrear quais threads foram criadas com sucesso
     int threadsUsadas = 0; // Contador de threads usadas
+
     for (int i = 0; i < MAX_THREADS; i++) {
         int erro = pthread_create(&threads[i], NULL, contarPrimosThread, NULL);
         // Cada thread deve contar os primos em sua parte da matriz
         if(erro != 0 ){
-            printf("Erro ao criar %d°thread \n", i);
+            printf("Erro ao criar %d°thread \n", i + 1);
             threadsCriadas[i] = false; // Marca a thread como não criada
             
         } else {
@@ -210,35 +175,42 @@ void contarPrimosParalelo() {
             threadsCriadas[i] = true; // Marca a thread como criada com sucesso
         }
     }
+  
+    if (threadsUsadas < MAX_THREADS) {
+        printf(">>> AVISO: Rodada com criacao incompleta. Apenas %d de %d threads processaram.\n", threadsUsadas, MAX_THREADS);
+    }
+
     for (int i = 0; i < MAX_THREADS; i++) {
         if (threadsCriadas[i]) {
             int erro = pthread_join(threads[i], NULL);
             if(erro != 0){
-                printf("Erro ao esperar %d°thread \n", i);
+                printf("Erro ao realizar o join da %d°thread \n", i + 1);
             }
 
         }
     }
-    printf("Total de blocos processados: %" PRIu64 "\n", controleMacroBlocos);
+    printf("Total de blocos processados: %" PRIu64 " de %" PRIu64 "\n", controleMacroBlocos, totalBlocos);
     printf("Total de Threads criadas: %d\n", threadsUsadas);
 }
 
 
 void saida(struct timespec inicio, struct timespec fim, const char* metodo) {
     double tempo = (fim.tv_sec - inicio.tv_sec) + (fim.tv_nsec - inicio.tv_nsec) / 1e9;
-    printf("%s - Total de números primos: %" PRIu64 "\n", metodo, totalPrimos);
+    printf("%s Total de números primos: %" PRIu64 "\n", metodo, totalPrimos);
     printf("Tempo de execução: %.6f segundos\n", tempo);
 }
-void menu(int** matriz){
+
+void menu(){
     int opcao = -1;
     while (opcao!= 0){
         totalPrimos = 0; // Resetar o contador de primos antes de cada contagem
         controleMacroBlocos = 0;
         struct timespec inicioParalelo, fimParalelo, inicioSerial, fimSerial;
 
+        printf("\n=================================");
         printf("\n1 - Contagem serial\n");
         printf("2 - Contagem paralela\n");
-        printf("3 - Ambas\n");
+        printf("3 - Ambas \n");
         printf("0 - Sair\n");
         printf("Escolha: ");
 
@@ -249,21 +221,22 @@ void menu(int** matriz){
             while ((caractere = getchar()) != '\n' && caractere != EOF) {
                 // Descarta a entrada invalida.
             }
-            if (caractere == EOF) {
-                break; // Encerra o menu se a entrada terminar.
-            }
+            if (caractere == EOF) break; // Encerra o menu se a entrada terminar.
             continue; // Volta ao inicio do while do menu.
         }
         
         switch (opcao){
             case 1:
                 // Chamar função de contagem serial
+                totalPrimos = 0; // Resetar o contador de primos antes da contagem 
                 clock_gettime(CLOCK_MONOTONIC, &inicioSerial); // Inicia a contagem do tempo  
                 contarPrimosSerial();
                 clock_gettime(CLOCK_MONOTONIC, &fimSerial); // Finaliza a contagem do tempo
                 saida(inicioSerial, fimSerial, "CONTAGEM SERIAL");
                 break;
             case 2:
+                totalPrimos = 0; // Resetar o contador de primos antes da contagem 
+                controleMacroBlocos = 0; // Reinicia o contador de blocos
                 clock_gettime(CLOCK_MONOTONIC, &inicioParalelo); // Inicia a contagem do tempo  
                 contarPrimosParalelo();
                 clock_gettime(CLOCK_MONOTONIC, &fimParalelo); // Finaliza a contagem do tempo
@@ -271,20 +244,27 @@ void menu(int** matriz){
                 break;
             case 3:
                 // Chamar ambas as funções
+                totalPrimos = 0;
                 clock_gettime(CLOCK_MONOTONIC, &inicioSerial); // Inicia a contagem do tempo
                 contarPrimosSerial();
                 clock_gettime(CLOCK_MONOTONIC, &fimSerial); // Finaliza a contagem do tempo
                 saida(inicioSerial, fimSerial, "CONTAGEM SERIAL");
 
-                totalPrimos = 0; // Resetar o contador de primos antes da contagem paralela
-
+                totalPrimos = 0; // Resetar o contador de primos antes da contagem 
+                controleMacroBlocos = 0; // Reinicia o contador de blocos
                 clock_gettime(CLOCK_MONOTONIC, &inicioParalelo); // Inicia a contagem do tempo
                 contarPrimosParalelo();
                 clock_gettime(CLOCK_MONOTONIC, &fimParalelo); // Finaliza a contagem do tempo
                 saida(inicioParalelo, fimParalelo, "CONTAGEM PARALELA");
 
-                printf("Speedup: %.2f\n", ((fimSerial.tv_sec - inicioSerial.tv_sec) + (fimSerial.tv_nsec - inicioSerial.tv_nsec) / 1e9) /
-                    ((fimParalelo.tv_sec - inicioParalelo.tv_sec) + (fimParalelo.tv_nsec - inicioParalelo.tv_nsec) / 1e9)); 
+                double tSerial = (fimSerial.tv_sec - inicioSerial.tv_sec) + (fimSerial.tv_nsec - inicioSerial.tv_nsec) / 1e9;
+                double tParalelo = (fimParalelo.tv_sec - inicioParalelo.tv_sec) + (fimParalelo.tv_nsec - inicioParalelo.tv_nsec) / 1e9;
+
+                if(tParalelo > 0) {
+                    printf("\n>>> SPEEDUP: %.2fx <<<\n", tSerial / tParalelo); 
+                } else {
+                    printf("\n>>> SPEEDUP: Incalculavel (tempo paralelo proximo a zero) <<<\n");
+                }
                 break;
             case 0:
                 printf("Saindo...\n");
@@ -298,24 +278,19 @@ void menu(int** matriz){
 
 
 int main(){
-    // Inicializando tabela de consulta de números primos
-
-    /* Validação em caso de que acidentalmente caguemos o código*/
     // Impedir dimensões zero ou negativas.
-    if (LINHAS <= 0 || COLUNAS <= 0 ||
-        LINHAS_POR_BLOCO <= 0 || COLUNAS_POR_BLOCO <= 0) {
+    if (LINHAS <= 0 || COLUNAS <= 0 || LINHAS_POR_BLOCO <= 0 || COLUNAS_POR_BLOCO <= 0) {
         printf("As dimensoes da matriz e dos blocos devem ser positivas.\n");
         return 1;
     }
 
     // Verificar se os blocos cabem sem sobras.
-    if (LINHAS % LINHAS_POR_BLOCO != 0 ||
-        COLUNAS % COLUNAS_POR_BLOCO != 0) {
+    if (LINHAS % LINHAS_POR_BLOCO != 0 || COLUNAS % COLUNAS_POR_BLOCO != 0) {
         printf("Os blocos precisam dividir a matriz sem sobras.\n");
         return 1;
     }
+
     totalBlocos = (uint64_t)(LINHAS / LINHAS_POR_BLOCO) * (COLUNAS / COLUNAS_POR_BLOCO);
-    precomputarPrimos();
     srand(SEMENTE_FIXA); // Inicializa o gerador de números aleatórios com a semente fixa
 
     printf("Gerando matriz de %d x %d...\n", LINHAS, COLUNAS);
@@ -333,7 +308,7 @@ int main(){
     clock_gettime(CLOCK_MONOTONIC, &fim); // Finaliza a contagem do tempo para gerar a matriz
     printf("Matriz gerada em %.6f segundos.\n", (fim.tv_sec - inicio.tv_sec) + (fim.tv_nsec - inicio.tv_nsec) / 1e9);
 
-    menu(matriz); // Chama o menu para interação com o usuário
+    menu(); // Chama o menu para interação com o usuário
 
     matriz = liberarMatriz(matriz, LINHAS, COLUNAS);
     return 0;
