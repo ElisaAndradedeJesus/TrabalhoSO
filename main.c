@@ -16,7 +16,7 @@
 /*  Define o tamanho da matriz 
     As dimensões devem ser positivas e dividir exatamente a Matriz sem deixar resto*/
 
-#define SEMENTE_FIXA 67 // Define a semente fixa para o gerador de números aleatórios SIXXX SEVEENNNN
+#define SEMENTE_FIXA 67 // Define a semente fixa para o gerador de números aleatórios 
 #define MAX_THREADS 4 // Define o número de threads
 
 // ============================================================================================================================
